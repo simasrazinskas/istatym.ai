@@ -94,9 +94,37 @@ If the user declines or goes silent, fall back to answering with all branches st
 This rides eve's durable sessions (pause for the next user message, resume with full context).
 See `docs/eve-agent-design.md`.
 
+### D12 — Relationship graph: intra-act resolution now, cross-act graph deferred
+
+Build deterministic intra-act reference resolution in v1 (parse Lithuanian citation grammar "X straipsnio Y dalies Z punktas" and resolve within the same act's structure); this powers the D10 exact-reference navigation tool and Darbo kodeksas is heavily self-referential.
+Defer the cross-act amends/amended-by graph (the "moat") to phase-2.
+Rationale: the consolidated text already folds in amendments, so amends/amended-by edges are not needed to answer "what is the current law" — they power history/coverage/differentiation features, which come after the vertical is proven.
+Cross-act references that do affect an answer (e.g. the Code points to a Vyriausybės nutarimas) are handled in v1 by semantic retrieval + the agentic loop, and only promoted to deterministic edges in phase-2.
+
+### D13 — Output contract: hybrid per-legal-claim citations, structured, as-of dated, with explicit abstention
+
+Every load-bearing legal claim carries an inline citation bound to a verified verbatim quote; connective prose does not; a structured sources panel lists each citation.
+Emit via the AI SDK `outputSchema`: `{ answer_markdown, claims:[{text, citation_ids}], citations:[{id, tar_kodas, article_path, valid_from, valid_to, quote, url}], as_of_date, confidence, caveats }`.
+Non-negotiables: every answer is as-of dated; the agent abstains explicitly when retrieval/grounding confidence is low; the D11 branched-answer fallback renders as independently-cited conditional claims.
+Rationale: per-claim binding defeats the "misgrounded citation" failure mode while keeping prose readable.
+
+### D14 — Evaluation: layered (automated CI gate + pre-release golden set + milestone human eval)
+
+Automated CI gate on every change: retrieval Recall@20 / nDCG@10 / MRR on the ~150–300 query employment set, plus two deterministic legal-specific checks — citation-substring verification (every quote a literal substring; non-substring = hard fail) and temporal correctness (the cited expression must be the currently-valid one).
+Pre-release golden set: ~50 employment questions with human-written gold answers, judged by an LLM-judge calibrated against periodic human spot-checks (correctness, completeness, abstention).
+Milestone human (lawyer) eval at major milestones only.
+Release gates: Recall@20 ≥ ~0.90, citation-substring verification = 100%, temporal correctness = 100% on the golden set, high abstention precision.
+The two foregrounded legal-specific metrics are temporal correctness and citation faithfulness.
+
+### D15 — Reasoning LLM: tiered hosted, zero-retention, with an honest residency claim
+
+Use a hosted frontier model (Claude Opus 4.8) for the final answer reasoning + citation step (strong tool use; the Anthropic Citations API returns machine-checkable `cited_text` spans that reinforce ground-by-construction), with a cheaper tier (Sonnet 4.6 / Haiku 4.5) for sub-tasks (query expansion, groundedness grading, base/amendment classification), resolved via eve's AI Gateway.
+Validate Lithuanian generation on the eval set; Gemini is the multilingual fallback for the language-heavy step.
+Residency: the corpus, embedding model, and vector index are fully self-hosted and never leave our infrastructure; query inference uses a zero-data-retention model provider, and the README states this honestly rather than implying nothing ever leaves.
+Rationale: answer quality and citation verifiability are the whole value of a legal product, and self-hosted open models currently trail meaningfully on legal reasoning and Lithuanian; the residency tradeoff is made deliberately, not by default.
+
 ## Open decisions (not yet made)
 
-- Project open-source license (publishing as public `istatym.ai`).
-- Whether/when to build the act-to-act relationship graph (the "moat") — likely phase-2, derived from text since no source edges exist.
-- The agent's reasoning/answer LLM (default to a current top Claude model via the AI SDK gateway, to be confirmed).
-- Eval set construction details and target metrics.
+- Ingestion/pipeline implementation stack (TypeScript vs Python for ingest, classification, chunking, and Lithuanian NLP such as lemmatization).
+- Deployment/hosting topology (where Postgres and the eve agent run; EU region for the zero-retention model arrangement).
+- CDC sync cadence and the backfill/repro strategy for re-chunking touched works.

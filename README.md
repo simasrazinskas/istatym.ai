@@ -18,7 +18,7 @@ This means the corpus is built from an official API, not scraped, and every answ
 - **Latest valid state.** Law is modelled as FRBR works with dated expressions; "current law" is always computed from validity windows, so superseded and repealed text is excluded by construction.
 - **Grounded by construction.** The agent copies evidence verbatim and verifies each quote is a substring of the source before reasoning — citations are verified, not trusted.
 - **Law-driven clarification.** It asks a clarifying question only when the retrieved provision actually branches on a missing fact, generated from the law rather than a fixed intake form.
-- **Self-hosted and private.** Embeddings are self-hosted; user queries and the corpus do not need to leave your infrastructure.
+- **Corpus stays private.** The legal corpus, embedding model, and vector index are fully self-hosted and never leave your infrastructure. Answer generation uses a hosted frontier model under a zero-data-retention arrangement.
 
 ## Architecture at a glance
 
@@ -26,6 +26,7 @@ This means the corpus is built from an official API, not scraped, and every answ
 - **Store:** a single Postgres with pgvector (semantic) + ParadeDB `pg_search` (BM25), fused with Reciprocal Rank Fusion and reranked.
 - **Embeddings:** self-hosted BGE-M3 (multilingual, strong on Lithuanian), pending an evaluation bake-off.
 - **Agent:** built on [Vercel eve](https://github.com/vercel/eve) and the Vercel AI SDK, with a bounded agentic retrieval loop and an exact-reference navigation tool.
+- **Reasoning model:** a hosted frontier model (e.g. Claude Opus 4.8) for answer reasoning and verifiable citations, with cheaper tiers for sub-tasks, under a zero-data-retention arrangement.
 
 The full design and the research behind it live in [`docs/`](docs/):
 
