@@ -123,8 +123,30 @@ Validate Lithuanian generation on the eval set; Gemini is the multilingual fallb
 Residency: the corpus, embedding model, and vector index are fully self-hosted and never leave our infrastructure; query inference uses a zero-data-retention model provider, and the README states this honestly rather than implying nothing ever leaves.
 Rationale: answer quality and citation verifiability are the whole value of a legal product, and self-hosted open models currently trail meaningfully on legal reasoning and Lithuanian; the residency tradeoff is made deliberately, not by default.
 
-## Open decisions (not yet made)
+### D16 — Polyglot stack, Postgres as the integration boundary
 
-- Ingestion/pipeline implementation stack (TypeScript vs Python for ingest, classification, chunking, and Lithuanian NLP such as lemmatization).
-- Deployment/hosting topology (where Postgres and the eve agent run; EU region for the zero-retention model arrangement).
-- CDC sync cadence and the backfill/repro strategy for re-chunking touched works.
+Python for the data plane (ingestion, base/amendment classification, hierarchy parsing, chunking, Lithuanian lemmatization, BGE-M3 embedding) and TypeScript for the eve agent + retrieval queries.
+The two planes integrate only through Postgres (D3): the Python plane writes canonical text, metadata, chunks, and vectors; the TS agent plane only reads.
+The BGE-M3 embedding model runs as a small Python service shared by both the batch ingest and the agent's query-time embedding (so document and query vectors come from the identical model — the asymmetric-retrieval requirement).
+Rationale: self-hosting BGE-M3 and doing Lithuanian lemmatization make the system polyglot regardless (FlagEmbedding, stanza/spaCy, Cobalt, Docling are all Python), so embrace the split deliberately and use each language where it is strongest.
+
+### D17 — Fully self-hosted, EU region
+
+Self-host Postgres (pgvector + pg_search), the embedding service, and the data plane on EU infrastructure for maximum residency/control.
+Note: `pg_search` needs custom-extension support (works self-hosted; not on AWS RDS).
+**Open risk:** eve is Vercel-native (its durable-session substrate is built on Vercel Workflows), so whether the agent runtime can run fully off-Vercel is unverified — see open risks. The corpus, embeddings, vectors, and database are self-hosted regardless; only the agent orchestration runtime is in question.
+
+### D18 — Daily sync, immutable raw archive, manual rebuild path
+
+Poll the Spinta `/:changes` feed once daily and run the D2 validity-rollover reconciliation daily (just after midnight EU time, since validity windows tick at date boundaries); re-classify/re-chunk/re-embed only touched works.
+Keep an immutable raw archive of everything pulled from Spinta (cheap object storage) so schema/parser/chunking changes reprocess from the archive without re-fetching, and as the citation-integrity audit trail.
+Provide a manual force-sync trigger and a full-rebuild (reprocess-from-archive) path distinct from the incremental daily delta.
+Rationale: legal effectiveness is date-granular, so sub-daily polling buys essentially nothing while a daily job stays simple and robust.
+
+## Open risks to verify
+
+- **eve self-hosting (blocks D17 if unresolved):** confirm whether eve's durable agent runtime can run off-Vercel, or whether eve-on-Vercel is an accepted exception to full self-hosting. Check eve's deployment docs (`docs/reference/eve/docs/guides/deployment.md`) and the beta's self-host story.
+- **BGE-M3 vs Gemini-001** on the Lithuanian employment eval set (D9) — decide the embedder on measured results, not priors.
+- **eve beta gaps** flagged in `docs/eve-agent-design.md` (whether a per-turn `outputSchema` survives an `ask_question` pause; hook ability to veto `result.completed`; whether tool-returned source text is compaction-preserved).
+- **Spinta pagination-boundary bug** — guard the bulk loader.
+- Unverified 2026 arXiv citations in `04-embeddings-and-grounding.md`.
