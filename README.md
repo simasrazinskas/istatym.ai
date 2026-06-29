@@ -31,6 +31,7 @@ This means the corpus is built from an official API, not scraped, and every answ
 The full design and the research behind it live in [`docs/`](docs/):
 
 - [`docs/research/00-architecture-decisions.md`](docs/research/00-architecture-decisions.md) — the canonical decision log.
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — the phased build plan.
 - [`docs/research/`](docs/research/) — supporting research (data source, temporal versioning, retrieval stack, embeddings/grounding, prior art).
 - [`docs/eve-agent-design.md`](docs/eve-agent-design.md) — how the agent maps onto eve primitives.
 
