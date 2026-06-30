@@ -32,11 +32,12 @@ RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
 # Standalone server + static assets + public dir.
-# The corpus JSON is statically imported and is therefore bundled into the
-# standalone server output by Next's build; no separate copy is required.
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
+# Migration SQL is read from disk at runtime (process.cwd()/db/migrations) and is
+# not traced into the standalone bundle, so copy it explicitly.
+COPY --from=build --chown=nextjs:nodejs /app/db ./db
 
 USER nextjs
 EXPOSE 3000

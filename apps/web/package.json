@@ -12,12 +12,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ingest": "tsx scripts/ingest.ts",
+    "test:db": "tsx scripts/smoke-db.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.90",
     "ai": "6.0.216",
     "next": "15.5.19",
+    "pg": "8.16.3",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "zod": "4.4.3"
@@ -25,10 +28,12 @@
   "devDependencies": {
     "@eslint/eslintrc": "3.3.5",
     "@types/node": "22.20.0",
+    "@types/pg": "8.15.6",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
     "eslint-config-next": "15.5.19",
+    "tsx": "4.20.6",
     "typescript": "5.9.3"
   }
 }

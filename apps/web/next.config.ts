@@ -2,11 +2,12 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  // Ensure the corpus JSON (imported from src/lib) is traced into the
-  // standalone server output. The import in src/lib/corpus.ts already pulls it
-  // into the trace, but we pin the tracing root to this package to avoid Next
-  // walking up to a non-existent monorepo root.
+  // Pin the tracing root to this package so Next does not walk up to a
+  // non-existent monorepo root when producing the standalone output.
   outputFileTracingRoot: __dirname,
+  // `pg` is a server-only dependency used by instrumentation and route
+  // handlers; keep it external so Next does not try to bundle its native bits.
+  serverExternalPackages: ['pg'],
 };
 
 export default nextConfig;

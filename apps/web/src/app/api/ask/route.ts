@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { search } from '@/lib/bm25';
-import { asOfDate, corpusMeta, getArticle, normalizeForCompare } from '@/lib/corpus';
+import { normalizeForCompare } from '@/lib/parser';
+import { getCurrentArticle, getCurrentMeta, searchArticles } from '@/lib/retrieval';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -48,26 +48,32 @@ export async function POST(req: Request) {
   }
   const { question } = parsed.data;
 
-  const retrieved = search(question, TOP_K);
+  let retrieved;
+  let meta;
+  try {
+    [retrieved, meta] = await Promise.all([searchArticles(question, TOP_K), getCurrentMeta()]);
+  } catch (err) {
+    console.error('retrieval failed:', err);
+    return NextResponse.json({ error: 'Retrieval is unavailable. Please try again.' }, { status: 503 });
+  }
+
+  const asOfDate = meta?.as_of_date ?? '';
 
   // Graceful degradation: no model key -> return retrieval only, no LLM call.
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({
       configured: false,
-      retrieved: retrieved.map(({ article }) => ({
-        number: article.number,
-        heading: article.heading,
-        snippet: snippet(article.body),
+      retrieved: retrieved.map((a) => ({
+        number: a.number,
+        heading: a.heading,
+        snippet: snippet(a.body),
       })),
       as_of_date: asOfDate,
     });
   }
 
   const context = retrieved
-    .map(
-      ({ article }) =>
-        `### ${article.number} straipsnis. ${article.heading}\n${article.body}`,
-    )
+    .map((a) => `### ${a.number} straipsnis. ${a.heading}\n${a.body}`)
     .join('\n\n---\n\n');
 
   const system = [
@@ -109,19 +115,28 @@ export async function POST(req: Request) {
   }
 
   // Ground-by-construction: verify each quote is a verbatim substring of the
-  // cited article's body (after whitespace normalization). Drop failures.
+  // cited article's current body (after whitespace normalization). Drop failures.
   const caveats = [...generation.caveats];
   const verifiedCitations: Array<{
     article_number: string;
     article_label: string;
     quote: string;
-    url: string;
+    url: string | null;
     valid_from: string;
+    valid_to: string | null;
   }> = [];
   let droppedCount = 0;
 
+  // Resolve every cited article once (current, validity-aware).
+  const citedNumbers = [...new Set(generation.citations.map((c) => c.article_number))];
+  const articlesByNumber = new Map(
+    await Promise.all(
+      citedNumbers.map(async (n) => [n, await getCurrentArticle(n)] as const),
+    ),
+  );
+
   for (const citation of generation.citations) {
-    const article = getArticle(citation.article_number);
+    const article = articlesByNumber.get(citation.article_number) ?? null;
     const haystack = article ? normalizeForCompare(article.body) : '';
     const needle = normalizeForCompare(citation.quote);
     const valid = article && needle.length > 0 && haystack.includes(needle);
@@ -131,8 +146,9 @@ export async function POST(req: Request) {
         article_number: citation.article_number,
         article_label: `${citation.article_number} straipsnis`,
         quote: citation.quote,
-        url: corpusMeta.nuoroda,
-        valid_from: corpusMeta.galioja_nuo,
+        url: article.source_url ?? meta?.source_url ?? null,
+        valid_from: article.valid_from,
+        valid_to: article.valid_to,
       });
     } else {
       droppedCount += 1;

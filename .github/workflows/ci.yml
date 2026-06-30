@@ -36,9 +36,44 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run build
 
+  test:
+    name: DB integration test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    services:
+      db:
+        image: paradedb/paradedb:0.24.1-pg17
+        env:
+          POSTGRES_USER: istatym
+          POSTGRES_PASSWORD: istatym
+          POSTGRES_DB: istatym
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U istatym -d istatym"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://istatym:istatym@localhost:5432/istatym
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:db
+
   image:
     name: Build and push image
-    needs: build
+    needs: [build, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

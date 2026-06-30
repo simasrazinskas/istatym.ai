@@ -1,10 +1,11 @@
 # pnpm (v11) stores install settings here. This is NOT a multi-package
 # workspace — there is no `packages:` key, so this stays a self-contained app.
 
-# Do not run native build scripts for these optional transitive deps; they are
-# not required for the standalone server (sharp = optional image optimization,
-# unrs-resolver = optional native eslint resolver).
+# esbuild backs `tsx`, used to run the ingest CLI and the DB smoke test, so its
+# build is allowed. The rest are optional transitive deps not required for the
+# standalone server (sharp = image optimization, unrs-resolver = eslint resolver).
 allowBuilds:
+  esbuild: true
   sharp: false
   unrs-resolver: false
 
