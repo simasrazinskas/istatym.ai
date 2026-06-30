@@ -1,7 +1,7 @@
 # istatym.ai production stack.
 # Lives on the VM at ~/istatym/compose.yaml and joins the existing Traefik `proxy` network.
-# Secrets (ANTHROPIC_API_KEY, POSTGRES_PASSWORD) come from a sibling ~/istatym/.env file (never committed).
-# See deploy/README.md.
+# Secrets (ANTHROPIC_API_KEY, POSTGRES_PASSWORD, VOYAGE_API_KEY, ROUTE_AUTH_BASIC_PASSWORD)
+# come from a sibling ~/istatym/.env file (never committed). See deploy/README.md.
 
 services:
   app:
@@ -14,6 +14,12 @@ services:
       NODE_ENV: production
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DATABASE_URL: postgres://istatym:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/istatym
+      # Hybrid retrieval (decision D3) via Voyage embeddings + rerank. When the key
+      # is unset (or the provider errors) the app falls back to FTS, so it never
+      # hard-depends on the embedding provider.
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      VOYAGE_EMBED_MODEL: ${VOYAGE_EMBED_MODEL:-voyage-4-large}
+      VOYAGE_RERANK_MODEL: ${VOYAGE_RERANK_MODEL:-rerank-2.5}
     networks:
       - proxy
       - internal
@@ -51,6 +57,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # Embeddings + rerank are provided by Voyage AI (Anthropic's recommended
+  # provider), called directly over HTTPS with VOYAGE_API_KEY — no local model
+  # service to host. Document and query vectors come from the identical model
+  # (decision D9); the corpus is embedded by the ingest plane's `pnpm ingest:embed`.
 
   # Self-hosted eve agent runtime (Nitro Node, no Vercel). Served on its own
   # host so the Traefik router's Host() rule forwards EVERY path to it -- both

@@ -12,6 +12,7 @@
     "ingest:bulk": "tsx scripts/bulk.ts",
     "ingest:classify": "tsx scripts/classify.ts",
     "ingest:cdc": "tsx scripts/cdc.ts",
+    "ingest:embed": "tsx scripts/embed.ts",
     "ingest:verify": "tsx scripts/verify.ts",
     "test:db": "tsx scripts/test.ts",
     "typecheck": "tsc --noEmit",

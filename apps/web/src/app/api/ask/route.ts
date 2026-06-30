@@ -3,7 +3,13 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { normalizeForCompare } from '@/lib/parser';
-import { getCurrentArticle, getCurrentMeta, searchArticles } from '@/lib/retrieval';
+import {
+  getCurrentArticle,
+  getCurrentMeta,
+  hybridSearchArticles,
+  searchArticles,
+  type RetrievedArticle,
+} from '@/lib/retrieval';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -34,6 +40,21 @@ function snippet(body: string): string {
   return clean.length > SNIPPET_LEN ? `${clean.slice(0, SNIPPET_LEN).trimEnd()}…` : clean;
 }
 
+/**
+ * Production hybrid retrieval (decision D3) when a Voyage key is configured,
+ * otherwise the FTS baseline. If the hybrid path fails (provider down), degrade to
+ * FTS so the app keeps answering — it must run with no embedding provider at all.
+ */
+async function retrieve(question: string): Promise<RetrievedArticle[]> {
+  if (!process.env.VOYAGE_API_KEY) return searchArticles(question, TOP_K);
+  try {
+    return await hybridSearchArticles(question, TOP_K);
+  } catch (err) {
+    console.error('hybrid retrieval failed; falling back to FTS:', err);
+    return searchArticles(question, TOP_K);
+  }
+}
+
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -51,7 +72,7 @@ export async function POST(req: Request) {
   let retrieved;
   let meta;
   try {
-    [retrieved, meta] = await Promise.all([searchArticles(question, TOP_K), getCurrentMeta()]);
+    [retrieved, meta] = await Promise.all([retrieve(question), getCurrentMeta()]);
   } catch (err) {
     console.error('retrieval failed:', err);
     return NextResponse.json({ error: 'Retrieval is unavailable. Please try again.' }, { status: 503 });

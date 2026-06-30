@@ -10,6 +10,7 @@
  *   DATABASE_URL=postgres://... pnpm test:db
  */
 import { classify } from '../src/classify';
+import { chunkArticle } from '../src/chunk';
 import { planDelta } from '../src/cdc';
 import type { ChangeRecord, SpintaRecord } from '../src/spinta';
 import { runMigrations } from '../src/migrate';
@@ -71,6 +72,66 @@ function testClassifier() {
   // The weak default is flagged ambiguous for the optional LLM pass.
   const ambiguous = classify({ pavadinimas: 'Dėl komisijos sudarymo', rusis: 'Nutarimas', consolidationCount: 0 });
   check('no signal -> base + ambiguous', ambiguous.classification === 'base' && ambiguous.ambiguous);
+}
+
+// ---------------------------------------------------------------------------
+// 1b. Chunker unit tests (pure, no DB, no network)
+// ---------------------------------------------------------------------------
+function testChunker() {
+  console.log('Chunker:');
+
+  // A multi-`dalis` article: paragraph leaves split on line-start "N." markers,
+  // breadcrumbs name the dalis, and the parent article chunk is kept.
+  const multi = chunkArticle({
+    number: '57',
+    heading: 'Darbo sutarties nutraukimas darbdavio iniciatyva',
+    breadcrumb: 'Darbo kodeksas > 57 straipsnis',
+    body: '1. Darbdavys turi teisę nutraukti darbo sutartį.\n2. Įspėjimo terminas yra vienas mėnuo.\n3. Išeitinė išmoka mokama darbuotojui.',
+  });
+  const leaves = multi.filter((c) => c.granularity === 'paragraph');
+  const parent = multi.filter((c) => c.granularity === 'article');
+  check('multi-dalis -> one article parent', parent.length === 1);
+  check('multi-dalis -> 3 paragraph leaves', leaves.length === 3);
+  check('leaf ordinals are 1..n', leaves.map((l) => l.ordinal).join(',') === '1,2,3');
+  check(
+    'leaf breadcrumb names the dalis',
+    leaves[0].breadcrumb === 'Darbo kodeksas > 57 straipsnis > 1 dalis',
+  );
+  check('content prepends the breadcrumb before the text', leaves[1].content.startsWith('Darbo kodeksas > 57 straipsnis > 2 dalis\n'));
+  check('leaf keeps the verbatim "N." prefix', leaves[1].text.startsWith('2. Įspėjimo terminas'));
+  check('parent embeds heading + body', parent[0].content.includes('Darbo sutarties nutraukimas') && parent[0].content.includes('Išeitinė išmoka'));
+
+  // An un-numbered article: exactly one leaf carrying the whole body, breadcrumb
+  // unchanged (no "> N dalis").
+  const single = chunkArticle({
+    number: '1',
+    heading: 'Darbo kodekso paskirtis',
+    breadcrumb: 'Darbo kodeksas > 1 straipsnis',
+    body: 'Šis kodeksas reglamentuoja darbo santykius Lietuvos Respublikoje.',
+  });
+  const singleLeaves = single.filter((c) => c.granularity === 'paragraph');
+  check('un-numbered article -> 1 leaf', singleLeaves.length === 1);
+  check('un-numbered leaf breadcrumb has no dalis', singleLeaves[0].breadcrumb === 'Darbo kodeksas > 1 straipsnis' && singleLeaves[0].dalis === null);
+
+  // Preamble before the first marker is captured as an un-numbered leaf.
+  const preamble = chunkArticle({
+    number: '5',
+    heading: 'Sąvokos',
+    breadcrumb: 'Darbo kodeksas > 5 straipsnis',
+    body: 'Šiame straipsnyje vartojamos sąvokos:\n1. Darbuotojas yra fizinis asmuo.\n2. Darbdavys yra įmonė.',
+  });
+  const preLeaves = preamble.filter((c) => c.granularity === 'paragraph');
+  check('preamble + 2 dalys -> 3 leaves', preLeaves.length === 3);
+  check('preamble leaf is un-numbered first', preLeaves[0].dalis === null && preLeaves[1].dalis === '1');
+
+  // Determinism: identical input -> identical output.
+  const again = chunkArticle({
+    number: '57',
+    heading: 'Darbo sutarties nutraukimas darbdavio iniciatyva',
+    breadcrumb: 'Darbo kodeksas > 57 straipsnis',
+    body: '1. Darbdavys turi teisę nutraukti darbo sutartį.\n2. Įspėjimo terminas yra vienas mėnuo.\n3. Išeitinė išmoka mokama darbuotojui.',
+  });
+  check('chunking is deterministic', JSON.stringify(again) === JSON.stringify(multi));
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +258,7 @@ async function testDb() {
 
 async function main() {
   testClassifier();
+  testChunker();
   testDelta();
 
   if (process.env.DATABASE_URL) {

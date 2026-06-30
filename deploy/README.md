@@ -4,11 +4,27 @@ The web app is built into a container image by CI (`.github/workflows/ci.yml`) a
 `ghcr.io/simasrazinskas/istatym`.
 It is hosted on the VM behind the existing Traefik reverse proxy, served at https://istatym.ai.
 
-The stack now has two services (see `compose.yaml`): the `app` container and a self-hosted
-`db` (ParadeDB = Postgres + pgvector + pg_search). The app runs schema migrations and, on first
-boot with an empty database, ingests the current Darbo kodeksas consolidation from the
-data.gov.lt Spinta API. The database lives on the internal Docker network only — it is never
-exposed to the proxy or the public internet — and persists in the `pgdata` named volume.
+The stack (see `compose.yaml`) is the `app` container, a self-hosted `db`
+(ParadeDB = Postgres + pgvector + pg_search), and the `agent` runtime. The app runs schema
+migrations and, on first boot with an empty database, ingests the current Darbo kodeksas
+consolidation from the data.gov.lt Spinta API. The database lives on the internal Docker network
+only — never exposed to the proxy or the public internet — and persists in the `pgdata` volume.
+
+### Hybrid retrieval (Voyage embeddings)
+
+Embeddings and reranking are provided by **Voyage AI** (Anthropic's recommended embeddings
+provider), called directly over HTTPS — there is no local model service to host. Set
+`VOYAGE_API_KEY` in `~/istatym/.env`; the embed/rerank models default to `voyage-4-large` /
+`rerank-2.5` and are overridable via `VOYAGE_EMBED_MODEL` / `VOYAGE_RERANK_MODEL`. When the key is
+unset (or Voyage errors) the app degrades gracefully to the FTS baseline, so retrieval never
+hard-fails.
+
+Document and query vectors must come from the identical model, so populate the `chunk` table with
+the same model: from a dev machine with `DATABASE_URL` pointed at the VM and `VOYAGE_API_KEY` set,
+run `apps/ingest pnpm ingest:embed` after the corpus is ingested. Until chunks exist, hybrid
+returns nothing for a query and the route falls back to FTS. (Voyage receives corpus chunk text +
+queries — a change from the earlier self-hosted-embeddings posture; their AWS Marketplace in-VPC
+package is an option if strict residency is later required.)
 
 ## One-time VM setup
 
@@ -22,6 +38,7 @@ mkdir -p ~/istatym
 umask 077
 {
   printf 'ANTHROPIC_API_KEY=sk-ant-...\n'
+  printf 'VOYAGE_API_KEY=pa-...\n'                            # Voyage embeddings; omit to run FTS-only
   printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)"   # generated once; never rotate casually
   printf 'ROUTE_AUTH_BASIC_USER=istatym\n'
   printf 'ROUTE_AUTH_BASIC_PASSWORD=%s\n' "$(openssl rand -hex 24)"  # operator creds for the agent endpoint
