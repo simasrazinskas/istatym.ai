@@ -1,0 +1,8 @@
+node_modules/
+.output/
+.eve/
+.nitro/
+.workflow-data/
+*.log
+.env
+.env.local
