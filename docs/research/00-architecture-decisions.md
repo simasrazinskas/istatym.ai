@@ -134,7 +134,7 @@ Rationale: self-hosting BGE-M3 and doing Lithuanian lemmatization make the syste
 
 Self-host Postgres (pgvector + pg_search), the embedding service, and the data plane on EU infrastructure for maximum residency/control.
 Note: `pg_search` needs custom-extension support (works self-hosted; not on AWS RDS).
-**Open risk:** eve is Vercel-native (its durable-session substrate is built on Vercel Workflows), so whether the agent runtime can run fully off-Vercel is unverified — see open risks. The corpus, embeddings, vectors, and database are self-hosted regardless; only the agent orchestration runtime is in question.
+**Resolved (spike, 2026-06-30):** eve runs fully self-hosted as a plain Nitro Node process; its durability is the open-source Workflow SDK (local-disk or our own Postgres world), not Vercel-locked. So the agent runtime self-hosts alongside the corpus, embeddings, vectors, and database. See `docs/research/eve-self-hosting-spike.md` and the resolved open risk below.
 
 ### D18 — Daily sync, immutable raw archive, manual rebuild path
 
@@ -145,7 +145,7 @@ Rationale: legal effectiveness is date-granular, so sub-daily polling buys essen
 
 ## Open risks to verify
 
-- **eve self-hosting (blocks D17 if unresolved):** confirm whether eve's durable agent runtime can run off-Vercel, or whether eve-on-Vercel is an accepted exception to full self-hosting. Check eve's deployment docs (`docs/reference/eve/docs/guides/deployment.md`) and the beta's self-host story.
+- **eve self-hosting — RESOLVED (spike, 2026-06-30):** eve is FULLY self-hostable off-Vercel — runs as a plain Nitro Node process (`eve build && eve start`), durability via the open-source Workflow SDK (bundled local-disk world, or our own Postgres world), models call Anthropic directly without the AI Gateway, sandbox runs locally (Docker / `just-bash`), and eve does no embeddings (BGE-M3 sits outside its path). No HARD Vercel dependencies. So D17 (full self-host) holds with eve. See `docs/research/eve-self-hosting-spike.md`. Implementation non-negotiables: Traefik must forward both `/eve/` and `/.well-known/workflow/`; pin the Workflow world to eve's `@workflow/*` `5.0.0-beta` line (start on the bundled local-disk world; adopt the Postgres world once peer-compat is confirmed).
 - **BGE-M3 vs Gemini-001** on the Lithuanian employment eval set (D9) — decide the embedder on measured results, not priors.
 - **eve beta gaps** flagged in `docs/eve-agent-design.md` (whether a per-turn `outputSchema` survives an `ask_question` pause; hook ability to veto `result.completed`; whether tool-returned source text is compaction-preserved).
 - **Spinta pagination-boundary bug** — guard the bulk loader.

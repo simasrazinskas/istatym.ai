@@ -9,6 +9,7 @@ Start with the decision log; the numbered files provide the supporting evidence.
 - [`03-retrieval-stack-postgres-eve.md`](03-retrieval-stack-postgres-eve.md) — Postgres hybrid search (pgvector + pg_search + RRF + rerank), Vercel eve, and the AI SDK.
 - [`04-embeddings-and-grounding.md`](04-embeddings-and-grounding.md) — Lithuanian embeddings and rerankers, chunking, grounding, and the evaluation plan.
 - [`05-prior-art-and-competitors.md`](05-prior-art-and-competitors.md) — existing tooling, datasets, and competing products (Vasara.ai, NuRule).
+- [`eve-self-hosting-spike.md`](eve-self-hosting-spike.md) — Phase 0 spike: eve is fully self-hostable off-Vercel (resolves the D17 open risk).
 
 See also [`../eve-agent-design.md`](../eve-agent-design.md) for the agent design grounded in eve primitives.
 
