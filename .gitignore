@@ -44,3 +44,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Local Claude Code agent config / skills
+.claude/

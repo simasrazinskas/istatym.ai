@@ -1,0 +1,15 @@
+# pnpm (v11) stores install settings here. This is NOT a multi-package
+# workspace — there is no `packages:` key, so this stays a self-contained app.
+
+# Do not run native build scripts for these optional transitive deps; they are
+# not required for the standalone server (sharp = optional image optimization,
+# unrs-resolver = optional native eslint resolver).
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
+
+# Allow these recently published pinned versions past the release-age gate.
+minimumReleaseAgeExclude:
+  - '@ai-sdk/anthropic@3.0.90'
+  - '@ai-sdk/gateway@3.0.140'
+  - 'ai@6.0.216'

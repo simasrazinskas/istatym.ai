@@ -1,0 +1,31 @@
+# istatym.ai production service.
+# Lives on the VM at ~/istatym/compose.yaml and joins the existing Traefik `proxy` network.
+# Secrets (ANTHROPIC_API_KEY) come from a sibling ~/istatym/.env file (never committed).
+# See deploy/README.md.
+
+services:
+  app:
+    image: ghcr.io/simasrazinskas/istatym:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.istatym.entrypoints: "websecure"
+      traefik.http.routers.istatym.rule: "Host(`istatym.ai`)"
+      traefik.http.routers.istatym.tls.certresolver: "letsencrypt"
+      traefik.http.services.istatym.loadbalancer.server.port: "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,25 @@
+name: Deploy
+
+# Manual deploy: pulls the latest image on the VM and restarts the istatym service.
+# Requires repo secrets: VM_HOST, VM_USER, VM_SSH_KEY (a private key authorized on the VM).
+# The VM must already have ~/istatym/compose.yaml and ~/istatym/.env (see deploy/README.md).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and restart over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/istatym
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
