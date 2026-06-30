@@ -1,17 +1,22 @@
-# istatym.ai production service.
+# istatym.ai production stack.
 # Lives on the VM at ~/istatym/compose.yaml and joins the existing Traefik `proxy` network.
-# Secrets (ANTHROPIC_API_KEY) come from a sibling ~/istatym/.env file (never committed).
+# Secrets (ANTHROPIC_API_KEY, POSTGRES_PASSWORD) come from a sibling ~/istatym/.env file (never committed).
 # See deploy/README.md.
 
 services:
   app:
     image: ghcr.io/simasrazinskas/istatym:latest
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DATABASE_URL: postgres://istatym:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/istatym
     networks:
       - proxy
+      - internal
     labels:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
@@ -26,6 +31,32 @@ services:
       retries: 3
       start_period: 20s
 
+  # ParadeDB = Postgres + pgvector + pg_search, the project's single store.
+  # This slice only uses standard FTS; the image is pinned now so later slices
+  # (embeddings, BM25) add extensions without a data-directory migration.
+  db:
+    image: paradedb/paradedb:0.24.1-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: istatym
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: istatym
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U istatym -d istatym"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 networks:
   proxy:
     external: true
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
