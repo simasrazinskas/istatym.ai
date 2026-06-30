@@ -23,6 +23,8 @@ umask 077
 {
   printf 'ANTHROPIC_API_KEY=sk-ant-...\n'
   printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)"   # generated once; never rotate casually
+  printf 'ROUTE_AUTH_BASIC_USER=istatym\n'
+  printf 'ROUTE_AUTH_BASIC_PASSWORD=%s\n' "$(openssl rand -hex 24)"  # operator creds for the agent endpoint
 } > ~/istatym/.env   # not committed; chmod 600
 cd ~/istatym
 docker compose pull
@@ -40,6 +42,25 @@ Traefik picks up the `app` container via its labels (`Host(istatym.ai)`, `websec
 and issues the TLS certificate on first request. The `db` service carries no Traefik labels and
 stays on the internal network. No other service on the box is touched.
 
+### Agent runtime (`agent` service)
+
+The self-hosted eve agent is served at `https://agent.istatym.ai` on its own host. A single Traefik
+`Host(agent.istatym.ai)` router forwards **every** path to it — both `/eve/` and the durable-run
+callback at `/.well-known/workflow/v1/flow` — which is required: a path-restricted proxy that drops
+the callback lets sessions start but stalls runs forever. Point an `agent.istatym.ai` DNS A record at
+the VM before deploying; Traefik issues its TLS cert on first request.
+
+Durable session state (the bundled local-disk workflow world) lives in the `agent_workflow_data`
+volume, so sessions survive container restarts. The endpoint is gated by HTTP Basic
+(`ROUTE_AUTH_BASIC_USER` / `ROUTE_AUTH_BASIC_PASSWORD`); `/eve/v1/health` stays public for probes.
+Smoke-test a turn:
+
+```sh
+curl -u "$ROUTE_AUTH_BASIC_USER:$ROUTE_AUTH_BASIC_PASSWORD" \
+  -X POST https://agent.istatym.ai/eve/v1/session \
+  -H 'content-type: application/json' -d '{"message":"Call ping and report the token."}'
+```
+
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` is a manual (`workflow_dispatch`) job that SSHes to the VM and runs
@@ -52,7 +73,16 @@ stays on the internal network. No other service on the box is touched.
 The GHCR package must be **public** for the VM to pull without authentication
 (Packages → istatym → visibility → public), or add a registry login on the VM.
 
-## Image
+## Images
+
+Two images are built and pushed by CI:
+
+- `ghcr.io/simasrazinskas/istatym` — the web app (`apps/web`).
+- `ghcr.io/simasrazinskas/istatym-agent` — the eve agent runtime (`apps/agent`).
+
+Both GHCR packages must be **public** for the VM to pull without authentication.
+
+### Web image
 
 - Built from `apps/web/Dockerfile` (Next.js standalone output).
 - Listens on port 3000; exposes `/api/health` for the container healthcheck and Traefik.

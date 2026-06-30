@@ -52,6 +52,37 @@ services:
       retries: 5
       start_period: 20s
 
+  # Self-hosted eve agent runtime (Nitro Node, no Vercel). Served on its own
+  # host so the Traefik router's Host() rule forwards EVERY path to it -- both
+  # `/eve/` and `/.well-known/workflow/v1/flow` (the durable-run callback path,
+  # which stalls runs forever if a path-restricted proxy drops it).
+  agent:
+    image: ghcr.io/simasrazinskas/istatym-agent:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ROUTE_AUTH_BASIC_USER: ${ROUTE_AUTH_BASIC_USER:-istatym}
+      ROUTE_AUTH_BASIC_PASSWORD: ${ROUTE_AUTH_BASIC_PASSWORD:?set ROUTE_AUTH_BASIC_PASSWORD in .env}
+    volumes:
+      # Durable workflow state (bundled local-disk world) must survive restarts.
+      - agent_workflow_data:/app/.workflow-data
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "proxy"
+      traefik.http.routers.istatym-agent.entrypoints: "websecure"
+      traefik.http.routers.istatym-agent.rule: "Host(`agent.istatym.ai`)"
+      traefik.http.routers.istatym-agent.tls.certresolver: "letsencrypt"
+      traefik.http.services.istatym-agent.loadbalancer.server.port: "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/eve/v1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 networks:
   proxy:
     external: true
@@ -60,3 +91,4 @@ networks:
 
 volumes:
   pgdata:
+  agent_workflow_data:

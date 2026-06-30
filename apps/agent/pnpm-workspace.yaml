@@ -1,0 +1,11 @@
+# pnpm (v11) install settings for the agent app. Not a multi-package workspace.
+
+# just-bash pulls these optional native compression deps; the pure-JS interpreter
+# works without them, so we do not build their native bindings.
+allowBuilds:
+  '@mongodb-js/zstd': false
+  node-liblzma: false
+
+# Allow eve's recently-published pinned version past the release-age gate.
+minimumReleaseAgeExclude:
+  - eve@0.17.1

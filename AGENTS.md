@@ -17,3 +17,13 @@
 - **pnpm v11** reads build-script allowlists from `pnpm-workspace.yaml` `allowBuilds:` (NOT `package.json`). `esbuild: true` is required for `tsx` (ingest CLI + DB smoke test) to install its binary under `--frozen-lockfile`.
 - **`pg`** is server-only — list it in `serverExternalPackages` so Next does not bundle it.
 - **CI** gates the image build on a `test` job that runs `pnpm test:db` against a ParadeDB service container (network-free fixture ingest + retrieval asserts).
+
+# eve Agent Runtime (apps/agent)
+
+- **Self-hosted, no Vercel.** `eve build` emits a self-contained Nitro node-server under `.output/` (the `just-bash` sandbox is vendored into `.output/server/node_modules`), so the runtime image runs `node .output/server/index.mjs` with NO app `node_modules`. eve requires Node `>=24`.
+- **Direct Anthropic:** pass a provider object `anthropic("claude-...")` (hyphenated ids) in `defineAgent({ model })` → runtime reads `ANTHROPIC_API_KEY`, no AI Gateway. A dotted string id (`anthropic/claude-...`) would route through the Gateway instead.
+- **Durability:** the bundled local-disk workflow world persists to `./.workflow-data`; mount it on a volume. Proven: kill the container, `docker restart` with the same volume, resume the session via its `continuationToken` → prior turn recalled.
+- **Reverse proxy MUST forward both `/eve/` and `/.well-known/workflow/v1/flow`.** A Traefik `Host(...)` rule (no PathPrefix) forwards all paths and satisfies this automatically; a path-restricted proxy stalls runs forever.
+- **Route auth fails closed:** author `agent/channels/eve.ts`; `localDev()` admits loopback only (so local curl + container healthcheck work), `httpBasic()` gates the public host. `/eve/v1/health` is always public.
+- **Sandbox:** pin `justbash()` (`agent/sandbox/sandbox.ts`) so the container needs no Docker daemon; `defaultBackend()` would try Docker first off-Vercel. Set `allowBuilds` false for just-bash's optional native deps (`@mongodb-js/zstd`, `node-liblzma`) in `pnpm-workspace.yaml`.
+- HTTP turn flow: `POST /eve/v1/session {message}` → `{sessionId, continuationToken}`; stream NDJSON at `GET /eve/v1/session/:id/stream`; follow up with `POST /eve/v1/session/:id {continuationToken, message}`.
