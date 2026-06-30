@@ -14,6 +14,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest.ts",
+    "compare": "tsx scripts/compare.ts",
     "test:db": "tsx scripts/smoke-db.ts"
   },
   "dependencies": {
