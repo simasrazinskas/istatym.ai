@@ -1,0 +1,35 @@
+{
+  "name": "istatym-ingest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "migrate": "tsx scripts/migrate.ts",
+    "ingest:bulk": "tsx scripts/bulk.ts",
+    "ingest:classify": "tsx scripts/classify.ts",
+    "ingest:cdc": "tsx scripts/cdc.ts",
+    "ingest:verify": "tsx scripts/verify.ts",
+    "test:db": "tsx scripts/test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.90",
+    "ai": "6.0.216",
+    "pg": "8.16.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@types/node": "22.20.0",
+    "@types/pg": "8.15.6",
+    "eslint": "9.39.4",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.39.0"
+  }
+}

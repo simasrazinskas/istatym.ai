@@ -71,6 +71,44 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:db
 
+  ingest:
+    name: Ingest typecheck, lint, DB test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ingest
+    services:
+      db:
+        image: paradedb/paradedb:0.24.1-pg17
+        env:
+          POSTGRES_USER: istatym
+          POSTGRES_PASSWORD: istatym
+          POSTGRES_DB: istatym
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U istatym -d istatym"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://istatym:istatym@localhost:5432/istatym
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/ingest/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/ingest/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm run lint
+      # Network-free test (classifier + CDC delta + DB integration). No full load.
+      - run: pnpm run test:db
+
   image:
     name: Build and push image
     needs: [build, test]

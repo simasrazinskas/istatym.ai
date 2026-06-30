@@ -1,0 +1,15 @@
+# pnpm (v11) stores install settings here. This is NOT a multi-package
+# workspace — there is no `packages:` key, so this stays a self-contained app
+# that mirrors apps/web's tooling.
+
+# esbuild backs `tsx`, used to run every ingest CLI and the network-free test
+# script, so its build is allowed.
+allowBuilds:
+  esbuild: true
+
+# Allow these recently published pinned versions past the release-age gate
+# (same set apps/web excludes — the optional LLM classification pass reuses them).
+minimumReleaseAgeExclude:
+  - '@ai-sdk/anthropic@3.0.90'
+  - 'ai@6.0.216'
+  - '@ai-sdk/gateway@3.0.140'
